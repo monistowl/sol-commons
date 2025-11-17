@@ -1,29 +1,44 @@
 ## Sol Commons on-chain toolkit
 
-This repository brings the **Commons Stack** primitives to Solana: an **Augmented Bonding Curve (ABC)** that continuously funds a community treasury and **Conviction Voting** that lets token holders signal their support for funding requests over time. The design mirrors how the Commons Stack combines reserve/funding pools with conviction‑driven proposal execution to keep “impact = profit” for public goods projects.citeturn0search0
+Sol Commons ports the analytical Commons Stack toolkit ([commonsstack.org][1]) into Solana. At its heart are
 
-### Core concepts
+1. **Augmented Bonding Curve (ABC)** – a smart-market maker whose pricing curve sends every contribution into a Reserve Pool for liquidity and a Funding Pool that is immediately spendable by the commons. Buyers mint tokens along the curve, contributors join hatches via allowlists, and every exit returns an exit tribute to the funding pool so the system is self-sustaining.citeturn0search0
+2. **Conviction Voting** – a continuous governance flow where people lock Commons tokens behind proposals and conviction accumulates proportional to time held; the commons only spends treasury funds once accumulated conviction crosses an adaptive threshold, aligning incentives between contributors and fund recipients.citeturn0search2turn0search4
+3. **Commons Assembly/Connected services** – off-chain tools (Praise/Tokenlog/Simulator) surface community recognition, GitHub issue prioritization, and parameter kits that feed into the on-chain ABC + Conviction Voting loop to fund real-world public goods via the commons treasury.citeturn0search2
 
-- **Augmented Bonding Curve (ABC)** – buyers mint tokens by depositing reserve assets into a curve that allocates inflows between a long-term Reserve Pool and an immediately spendable Funding Pool; hatch participants receive slowly unlocking tokens tied to capital allocations, and every burn routes a tribute back into the Funding Pool so the commons regains value from exits.citeturn0search0
-- **Conviction Voting** – continuous, time-weighted signaling where each supporter’s conviction grows while they keep their vote unchanged, enabling a social sensor fusion signal that triggers funding once accumulated conviction passes an adaptive threshold.citeturn0search2turn0search4
-- **Commons Assembly** – the ABC and Conviction Voting components sit together as the core economic & governance stack that feeds downstream apps (e.g., Giveth’s request funding engine) so communities can coordinate and spend from a commons treasury.citeturn0search2
+### What this repo provides
 
-### Current implementation status
+| Layer | Description |
+|---|---|
+| `commons_hatch`, `commons_abc` | Anchor programs that open a Merkle-gated hatch, settle contributions in a vault, and initialize the ABC curve via CPI. The curve tracks a 3-account setup (curve_config PDA, reserve vault, treasury), handles friction splits, and supports refund/claim flows (see existing tests for minted, refunded, and claimed scenarios). |
+| `commons_conviction_voting` | Converts the classic CV pattern into Anchor: stakes flow through a global staking vault/PDA, every stake/unstake updates conviction with decay, a helper computes the required conviction threshold, and execution is blocked until the treasury-target ratio is satisfied. Tests cover math correctness and the lifecycle. |
+| `commons_rewards` | Merkle-based reward epochs driven by praise—each `RewardEpoch` keeps the vault + PDA bumps so claims can be signed deterministically. The reward CPI signs via derived authority seeds instead of reconstructing random bytes. |
+| Off-chain services | Praise, Tokenlog, Simulator scaffolds now export helpers/configs plus integration tests (Mocha + Anchor) so these services can eventually post Merkle roots, GitHub snapshot requests, and simulation parameters. |
+| Integration tests | `tests/offchain-integration.js` connects the Node.js scaffolds, while `tests/sol-commons-workspace.ts` shows how praise output becomes a `commons_rewards` epoch using Anchor/`@solana/spl-token`. |
 
-1. **`commons_hatch` & `commons_abc`** – Anchor programs that bootstrap funding (with Merkle allowlists, contributions, and refunds) and mirror the ABC formula. `commons_hatch` initializes the curve via CPI into `commons_abc`, which tracks a curve invariant, reserve/vault accounts, and friction/fund-split math. Integration tests already cover mint/claim/refund flows.
-2. **`commons_conviction_voting`** – now enforces proposal state transitions, manages a staking vault, updates conviction via decay/threshold functions, and gates treasury transfers until required conviction is reached. Unit tests validate decay, required‑conviction math, and staking math.
-3. **`commons_rewards`** – provides a Merkle-backed reward epoch and payout flow (needs the PDA signer fix noted in issue `sol-commons-dvi`).
-4. **Off-chain services** – `offchain/praise-service`, `offchain/tokenlog-service`, and `offchain/simulator-pipeline` are placeholders; follow-up work (issue `sol-commons-2bh`) should replace the READMEs with concrete pipelines or docs.
+### Example scenarios
 
-### Getting started
+1. **Community Hatch + ABC deployment** – The community runs `commons_hatch.initialize` with parameters, an allowlisted Merkle root, and a reserve mint. Contributors deposit during the open window; the finalizer uses `commons_abc.initialize_curve` to mint treasury and reserve vaults, then contributors can claim tokens post-hatch.
+2. **Continuous funding via conviction** – Commons token holders stake into proposals via `commons_conviction_voting.stake_tokens`. `update_conviction_for_proposal` keeps a decayed conviction value, and only when the calculated threshold is met does `check_and_execute` approve the request and pay out from the treasury via the CV PDA authority.
+3. **Praise → reward epoch** – The off-chain Praise service collects kudos, builds a Merkle batch, and `tests/sol-commons-workspace.ts` demonstrates how that batch becomes a `commons_rewards` epoch tied to a PDA vault with a deterministic mint. Claimers can later pull funds from the vault using the proof generated by the same off-chain service.
 
-1. Install Anchor and run `yarn` under `sol-commons-workspace` to sync the TypeScript tooling.
-2. `cd sol-commons-workspace && cargo test -p commons_hatch`/`cargo test -p commons_abc`/`cargo test -p commons_conviction_voting` to exercise on-chain units.
-3. Build/deploy via Anchor CLI, wiring the PDAs described in each program (curve_config, staking_vault, reward_epoch, etc.).
+### How to get started
 
-### Next milestones
+1. Install Anchor and run `yarn` in `sol-commons-workspace`; the workspace already includes `@coral-xyz/anchor`, `@solana/spl-token`, and the off-chain scaffolds.
+2. Run `yarn test:offchain` to verify the off-chain services are wired together, then `cargo test -p commons_hatch`/`commons_abc`/`commons_conviction_voting`/`commons_rewards` for the on-chain pieces.
+3. Use `Anchor.toml` + `cargo test` to deploy locally. Point `offchain/*/config.json` to the deployed programs and trigger the On-chain flows via the integration tests.
 
-- Finish Conviction Voting integration & treasury wiring so proposals can drain the ABC-funded commons (issue `sol-commons-1s3`).
-- Repair the reward PDA signer (issue `sol-commons-dvi`) and harden the hatch window/gating logic (issue `sol-commons-v17`).
-- Expand README placeholders within `offchain/` into runnable services or spec docs as part of `sol-commons-2bh`.
+### Staying aligned
 
+- `sol-commons-v17`: hatch gating is in place, but consider adding more integration tests to prove contributions obey slot windows and finalization states.
+- `sol-commons-2bh`: the scaffolds & integration tests exist, so this issue now becomes implementing real services (e.g., praise aggregator, GitHub tokenlog bot, cadCAD simulator) that exercise the Anchor tests end-to-end.
+
+### Tests
+
+```bash
+yarn test:offchain
+cargo test -p commons_hatch
+cargo test -p commons_abc
+cargo test -p commons_conviction_voting
+cargo test -p commons_rewards
+```

@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use anchor_lang::solana_program::hash;
+use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 declare_id!("GccA6L8BUnkZVeUAdSAeoiFFCVynf6GZbBTPZfCj7tpY");
 
@@ -24,6 +24,10 @@ pub mod commons_rewards {
         reward_epoch.total_tokens = total_tokens;
         reward_epoch.merkle_root = merkle_root;
         reward_epoch.reward_epoch_bump = ctx.bumps.reward_epoch;
+        reward_epoch.reward_vault = ctx.accounts.reward_vault.key();
+        reward_epoch.reward_vault_bump = ctx.bumps.reward_vault;
+        reward_epoch.reward_vault_authority = ctx.accounts.reward_vault_authority.key();
+        reward_epoch.reward_vault_authority_bump = ctx.bumps.reward_vault_authority;
         Ok(())
     }
 
@@ -37,7 +41,10 @@ pub mod commons_rewards {
 
         // Verify Merkle proof
         let leaf = get_leaf_from_claim(&ctx.accounts.authority.key(), amount);
-        require!(verify_merkle_proof(proof, reward_epoch.merkle_root, leaf), RewardError::InvalidMerkleProof);
+        require!(
+            verify_merkle_proof(proof, reward_epoch.merkle_root, leaf),
+            RewardError::InvalidMerkleProof
+        );
 
         // Transfer promised amount from Reward Pool PDA to user’s wallet
         let cpi_accounts = Transfer {
@@ -46,13 +53,14 @@ pub mod commons_rewards {
             authority: ctx.accounts.reward_vault_authority.to_account_info(), // PDA authority
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
-        let epoch_id_bytes = epoch_id.to_le_bytes(); // Store in a let binding
-        let seeds = &[
-            b"reward_vault",
-            epoch_id_bytes.as_ref(), // Use the let binding here
-            &[ctx.accounts.reward_vault_authority.key().as_ref()[0]], // Assuming reward_vault_authority is PDA
+        let epoch_id_bytes = epoch_id.to_le_bytes();
+        let bump_bytes = [reward_epoch.reward_vault_authority_bump];
+        let authority_seeds: [&[u8]; 3] = [
+            b"reward_vault_authority",
+            epoch_id_bytes.as_ref(),
+            &bump_bytes,
         ];
-        let signer = &[&seeds[..]];
+        let signer = &[&authority_seeds[..]];
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
         token::transfer(cpi_ctx, amount)?;
 
@@ -68,8 +76,25 @@ pub struct Initialize {}
 pub struct CreateRewardEpoch<'info> {
     #[account(init, payer = authority, space = 8 + 8 + 8 + 32 + 1, seeds = [b"reward_epoch", epoch_id.to_le_bytes().as_ref()], bump)]
     pub reward_epoch: Account<'info, RewardEpoch>,
+    #[account(
+        init,
+        payer = authority,
+        token::mint = reward_mint,
+        token::authority = reward_vault_authority,
+        seeds = [b"reward_vault", epoch_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub reward_vault: Account<'info, TokenAccount>,
+    /// CHECK: PDA authority for the reward vault
+    #[account(
+        seeds = [b"reward_vault_authority", epoch_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub reward_vault_authority: UncheckedAccount<'info>,
     #[account(mut)]
     pub authority: Signer<'info>,
+    pub reward_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
@@ -81,7 +106,11 @@ pub struct ClaimReward<'info> {
     #[account(mut)]
     pub reward_vault: Account<'info, TokenAccount>,
     /// CHECK: This is the PDA authority for the reward vault
-    pub reward_vault_authority: AccountInfo<'info>,
+    #[account(
+        seeds = [b"reward_vault_authority", epoch_id.to_le_bytes().as_ref()],
+        bump = reward_epoch.reward_vault_authority_bump
+    )]
+    pub reward_vault_authority: UncheckedAccount<'info>,
     #[account(mut)]
     pub user_reward_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
@@ -96,6 +125,10 @@ pub struct RewardEpoch {
     pub total_tokens: u64,
     pub merkle_root: [u8; 32],
     pub reward_epoch_bump: u8,
+    pub reward_vault: Pubkey,
+    pub reward_vault_bump: u8,
+    pub reward_vault_authority: Pubkey,
+    pub reward_vault_authority_bump: u8,
 }
 
 // Helper function to create a leaf from the claimer's public key and amount
@@ -106,11 +139,7 @@ fn get_leaf_from_claim(claimer: &Pubkey, amount: u64) -> [u8; 32] {
 }
 
 // Helper function to verify Merkle proof
-fn verify_merkle_proof(
-    proof: Vec<[u8; 32]>,
-    root: [u8; 32],
-    leaf: [u8; 32],
-) -> bool {
+fn verify_merkle_proof(proof: Vec<[u8; 32]>, root: [u8; 32], leaf: [u8; 32]) -> bool {
     let mut computed_hash = leaf;
     for proof_element in proof {
         if computed_hash <= proof_element {

@@ -1,0 +1,4 @@
+{
+  "rpcEndpoint": "https://api.devnet.solana.com",
+  "defaultReward": 1000
+}

@@ -5,16 +5,22 @@ use anchor_lang::{InstructionData, ToAccountMetas};
 use commons_abc::ID as ABC_PROGRAM_ID;
 use commons_hatch::{
     self, accounts as hatch_accounts, instruction as hatch_instruction, Contribution, HatchConfig,
-    ID as HATCH_PROGRAM_ID,
+    HatchError, ID as HATCH_PROGRAM_ID,
 };
-use solana_program::{hash::hashv, program_pack::Pack, system_instruction, sysvar};
+use solana_program::{
+    hash::hashv,
+    instruction::InstructionError,
+    program_pack::Pack,
+    system_instruction,
+    sysvar,
+};
 use solana_program_test::{processor, BanksClient, ProgramTest};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signature::Keypair,
-    signature::Signer,
-    transaction::Transaction,
+    signature::{Keypair, Signer},
+    transaction::{Transaction, TransactionError},
+    transport::TransportError,
 };
 use spl_token::{
     instruction as token_instruction,
@@ -38,6 +44,35 @@ async fn process_transaction(
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
+}
+
+async fn expect_hatch_error(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    instructions: Vec<Instruction>,
+    signers: Vec<&Keypair>,
+    expected: HatchError,
+) {
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let mut all_signers = vec![payer];
+    all_signers.extend(signers);
+    let tx = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&payer.pubkey()),
+        &all_signers,
+        recent_blockhash,
+    );
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    let tx_err = match err {
+        TransportError::TransactionError(tx_err) => tx_err,
+        _ => panic!("expected transaction error, got {:?}", err),
+    };
+    match tx_err {
+        TransactionError::InstructionError(_, InstructionError::Custom(code)) => {
+            assert_eq!(code, expected as u32);
+        }
+        _ => panic!("unexpected transaction error: {:?}", tx_err),
+    }
 }
 
 async fn create_mint(
@@ -507,4 +542,184 @@ async fn finalize_failure_triggers_refund_and_close() {
 
     let closed_account = banks_client.get_account(hatch_config).await.unwrap();
     assert!(closed_account.is_none());
+}
+
+#[tokio::test]
+async fn contribute_rejected_before_open() {
+    let mut program = ProgramTest::new(
+        "commons_hatch",
+        HATCH_PROGRAM_ID,
+        processor!(commons_hatch::entry),
+    );
+    program.add_program("commons_abc", ABC_PROGRAM_ID, processor!(commons_abc::entry));
+
+    let (mut banks_client, payer, _recent_blockhash) = program.start().await;
+    let user = Keypair::new();
+    let transfer = system_instruction::transfer(&payer.pubkey(), &user.pubkey(), 5_000_000_000);
+    process_transaction(&mut banks_client, &payer, vec![transfer], vec![]).await;
+
+    let reserve_mint = create_mint(&mut banks_client, &payer, &payer.pubkey()).await;
+    let hatch_config = Pubkey::find_program_address(&[b"hatch_config", reserve_mint.as_ref()], &HATCH_PROGRAM_ID).0;
+    let hatch_vault = Pubkey::find_program_address(&[b"hatch_vault", reserve_mint.as_ref()], &HATCH_PROGRAM_ID).0;
+
+    let merkle_root = merkle_leaf(&user.pubkey(), 100);
+    let init_ix = Instruction {
+        program_id: HATCH_PROGRAM_ID,
+        accounts: hatch_accounts::InitializeHatch {
+            hatch_config,
+            reserve_asset_mint: reserve_mint,
+            hatch_vault,
+            authority: payer.pubkey(),
+            system_program: system_program::ID,
+            token_program: spl_token::id(),
+            rent: sysvar::rent::ID,
+        }
+        .to_account_metas(None),
+        data: hatch_instruction::InitializeHatch {
+            min_raise: 50,
+            max_raise: 200,
+            open_slot: 10,
+            close_slot: 20,
+            merkle_root,
+        }
+        .data(),
+    };
+    process_transaction(&mut banks_client, &payer, vec![init_ix], vec![]).await;
+
+    let user_reserve_account =
+        create_user_token_account(&mut banks_client, &payer, &user, &reserve_mint).await;
+    mint_to_account(
+        &mut banks_client,
+        &payer,
+        &reserve_mint,
+        &user_reserve_account,
+        &payer,
+        60,
+    )
+    .await;
+
+    let contribution = Pubkey::find_program_address(
+        &[b"contribution", user.pubkey().as_ref()],
+        &HATCH_PROGRAM_ID,
+    )
+    .0;
+    let contribute_ix = Instruction {
+        program_id: HATCH_PROGRAM_ID,
+        accounts: hatch_accounts::Contribute {
+            hatch_config,
+            contribution,
+            hatch_vault,
+            user_reserve_token_account: user_reserve_account,
+            authority: user.pubkey(),
+            system_program: system_program::ID,
+            token_program: spl_token::id(),
+        }
+        .to_account_metas(None),
+        data: hatch_instruction::Contribute {
+            amount: 60,
+            allowed_allocation: 100,
+            proof: vec![],
+        }
+        .data(),
+    };
+
+    expect_hatch_error(
+        &mut banks_client,
+        &payer,
+        vec![contribute_ix],
+        vec![&user],
+        HatchError::HatchNotOpenYet,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn contribute_rejected_after_close() {
+    let mut program = ProgramTest::new(
+        "commons_hatch",
+        HATCH_PROGRAM_ID,
+        processor!(commons_hatch::entry),
+    );
+    program.add_program("commons_abc", ABC_PROGRAM_ID, processor!(commons_abc::entry));
+
+    let (mut banks_client, payer, _recent_blockhash) = program.start().await;
+    let user = Keypair::new();
+    let transfer = system_instruction::transfer(&payer.pubkey(), &user.pubkey(), 5_000_000_000);
+    process_transaction(&mut banks_client, &payer, vec![transfer], vec![]).await;
+
+    let reserve_mint = create_mint(&mut banks_client, &payer, &payer.pubkey()).await;
+    let hatch_config = Pubkey::find_program_address(&[b"hatch_config", reserve_mint.as_ref()], &HATCH_PROGRAM_ID).0;
+    let hatch_vault = Pubkey::find_program_address(&[b"hatch_vault", reserve_mint.as_ref()], &HATCH_PROGRAM_ID).0;
+
+    let merkle_root = merkle_leaf(&user.pubkey(), 100);
+    let init_ix = Instruction {
+        program_id: HATCH_PROGRAM_ID,
+        accounts: hatch_accounts::InitializeHatch {
+            hatch_config,
+            reserve_asset_mint: reserve_mint,
+            hatch_vault,
+            authority: payer.pubkey(),
+            system_program: system_program::ID,
+            token_program: spl_token::id(),
+            rent: sysvar::rent::ID,
+        }
+        .to_account_metas(None),
+        data: hatch_instruction::InitializeHatch {
+            min_raise: 50,
+            max_raise: 200,
+            open_slot: 0,
+            close_slot: 2,
+            merkle_root,
+        }
+        .data(),
+    };
+    process_transaction(&mut banks_client, &payer, vec![init_ix], vec![]).await;
+
+    let user_reserve_account =
+        create_user_token_account(&mut banks_client, &payer, &user, &reserve_mint).await;
+    mint_to_account(
+        &mut banks_client,
+        &payer,
+        &reserve_mint,
+        &user_reserve_account,
+        &payer,
+        60,
+    )
+    .await;
+
+    banks_client.warp_to_slot(5).await.unwrap();
+
+    let contribution = Pubkey::find_program_address(
+        &[b"contribution", user.pubkey().as_ref()],
+        &HATCH_PROGRAM_ID,
+    )
+    .0;
+    let contribute_ix = Instruction {
+        program_id: HATCH_PROGRAM_ID,
+        accounts: hatch_accounts::Contribute {
+            hatch_config,
+            contribution,
+            hatch_vault,
+            user_reserve_token_account: user_reserve_account,
+            authority: user.pubkey(),
+            system_program: system_program::ID,
+            token_program: spl_token::id(),
+        }
+        .to_account_metas(None),
+        data: hatch_instruction::Contribute {
+            amount: 60,
+            allowed_allocation: 100,
+            proof: vec![],
+        }
+        .data(),
+    };
+
+    expect_hatch_error(
+        &mut banks_client,
+        &payer,
+        vec![contribute_ix],
+        vec![&user],
+        HatchError::HatchClosed,
+    )
+    .await;
 }

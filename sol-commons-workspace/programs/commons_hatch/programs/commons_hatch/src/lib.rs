@@ -57,6 +57,19 @@ pub mod commons_hatch {
         allowed_allocation: u64,
         proof: Vec<[u8; 32]>,
     ) -> Result<()> {
+        let hatch_config = &mut ctx.accounts.hatch_config;
+        let clock = Clock::get()?;
+        require!(
+            clock.slot >= hatch_config.open_slot,
+            HatchError::HatchNotOpenYet
+        );
+        require!(
+            clock.slot <= hatch_config.close_slot,
+            HatchError::HatchClosed
+        );
+        require!(!hatch_config.finalized, HatchError::HatchFinalized);
+        require!(!hatch_config.failed, HatchError::HatchFailed);
+
         // Verify Merkle proof
         require!(allowed_allocation > 0, HatchError::InvalidAllocation);
         require!(amount > 0, HatchError::InvalidContributionAmount);
@@ -517,4 +530,12 @@ pub enum HatchError {
     EmptyContribution,
     #[msg("Not all contributions have been refunded.")]
     UnrefundedContributions,
+    #[msg("Hatch has not opened yet.")]
+    HatchNotOpenYet,
+    #[msg("Hatch is already closed.")]
+    HatchClosed,
+    #[msg("Hatch has already been finalized.")]
+    HatchFinalized,
+    #[msg("Hatch has failed.")]
+    HatchFailed,
 }

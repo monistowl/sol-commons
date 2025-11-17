@@ -1,0 +1,4 @@
+{
+  "mockIssues": ["issue-1", "issue-2"],
+  "mockBalances": [{"address": "F1", "tokens": 500}, {"address": "F2", "tokens": 300}]
+}

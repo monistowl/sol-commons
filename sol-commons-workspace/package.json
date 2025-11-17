@@ -1,11 +1,13 @@
 {
   "license": "ISC",
   "scripts": {
+    "test:offchain": "mocha tests/offchain-integration.js",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.1"
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.3.10"
   },
   "devDependencies": {
     "chai": "^4.3.4",
