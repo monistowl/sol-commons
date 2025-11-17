@@ -1,12 +1,50 @@
-## Sol Commons on-chain toolkit
+# Sol Commons on-chain toolkit
 
-Sol Commons ports the analytical Commons Stack toolkit ([commonsstack.org](https://commonsstack.org)) into Solana. At its heart are
+**Sol Commons** ports the analytical Commons Stack toolkit ([commonsstack.org](https://commonsstack.org)) into Solana.
 
-1. **Augmented Bonding Curve (ABC)** – a smart-market maker whose pricing curve sends every contribution into a Reserve Pool for liquidity and a Funding Pool that is immediately spendable by the commons. Buyers mint tokens along the curve, contributors join hatches via allowlists, and every exit returns an exit tribute to the funding pool so the system is self-sustaining.
-2. **Conviction Voting** – a continuous governance flow where people lock Commons tokens behind proposals and conviction accumulates proportional to time held; the commons only spends treasury funds once accumulated conviction crosses an adaptive threshold, aligning incentives between contributors and fund recipients.
-3. **Commons Assembly/Connected services** – off-chain tools (Praise/Tokenlog/Simulator) surface community recognition, GitHub issue prioritization, and parameter kits that feed into the on-chain ABC + Conviction Voting loop to fund real-world public goods via the commons treasury.
+The goal: make it easy for any community to launch a **regenerative, self-governing micro-economy** around a shared cause—open source software, local climate projects, research, mutual aid, you name it. Instead of one-off grants and donation drives, you get a continuously funded treasury and a governance system that rewards patient, aligned contributors.
 
-### What this repo provides
+Traditional tools fall short:
+
+- Simple treasuries run out of money or create endless fundraising overhead.
+- Vanilla bonding curves offer liquidity, but tend to reward fast speculation more than long-term stewardship.
+- Snapshot token voting is brittle—turnout is low, whales can dominate, and decision-making comes in short, stressful bursts.
+
+The Commons Stack pattern tackles this by tightly coupling three pieces into one loop:
+
+1. **Augmented Bonding Curve (ABC)** – a primary-issuance AMM that:
+   - Mints and burns tokens along a programmable curve.
+   - Splits every contribution into a **Reserve Pool** (for predictable liquidity) and a **Funding Pool** (a commons treasury the community can spend).
+   - Charges a small **tribute** on exits, sending a slice of each sell back into the Funding Pool so the commons benefits even when traders cash out.
+
+   In practice: your community token is liquid from day one, but the system is constantly topping up a shared treasury instead of leaking value out of the commons.
+
+2. **Conviction Voting** – a continuous decision-making mechanism for allocating that treasury:
+   - Token holders **lock tokens behind proposals** they want to see funded.
+   - Their support (conviction) **grows over time** as they stay staked, and decays when they move their tokens.
+   - Each proposal has an **adaptive threshold** based on how much it’s asking for relative to the treasury, so small ideas can pass quickly while big spends need deep, sustained backing.
+
+   This turns governance into a **steady, time-weighted signal** instead of a series of rushed “voting days.” Long-term, aligned participants gain more influence than short-term speculators, and proposals only execute once they’ve earned enough conviction to justify the spend.
+
+3. **Off-chain assembly / connected services** – the cultural and data layer that drives the on-chain machinery:
+   - **Praise** captures and quantifies community recognition, then batches it into Merkle trees for reward epochs.
+   - **Tokenlog** ties GitHub issues and wallet balances together, so work queues and stakeholders are visible in one place.
+   - A **Simulator** lets you sweep through different curve and governance parameters off-chain and generate parameter kits before deploying anything on-chain.
+
+   Together, these services turn messy human inputs—contributions, code, coordination—into deterministic data that can feed the ABC and Conviction Voting modules.
+
+**Sol Commons** implements that full pattern on Solana with Anchor programs and a reproducible off-chain pipeline. You get:
+
+- A **hatch** to bring in trusted early contributors, set initial parameters, and bootstrap the curve.
+- An **ABC** that continuously mints/burns commons tokens, keeps liquidity in a reserve, and regeneratively funds the treasury.
+- A **Conviction Voting** program that guards the treasury so funds only move when proposals accumulate enough conviction.
+- A **Merkle-based rewards system** and TypeScript integration tests tying Praise/Tokenlog/Simulator outputs into on-chain reward epochs.
+
+If you want to launch a Solana-native commons that can both **fund itself** and **govern itself** in a principled, continuous way, this repo is the on-chain toolkit you plug into.
+
+---
+
+## What this repo provides
 
 | Layer | Description |
 |---|---|
@@ -16,13 +54,22 @@ Sol Commons ports the analytical Commons Stack toolkit ([commonsstack.org](https
 | Off-chain services | Praise, Tokenlog, and Simulator scaffolds provide deterministic data: Praise emits Merkle roots + proofs, Tokenlog fetches GitHub issues before failing back to mocks, and the Simulator provides curve scenarios + metrics so the Mocha/Anchor suites recreate the same parameters used in deployment. |
 | Integration tests | `tests/offchain-integration.js` validates the off-chain pipeline; `scripts/run-offchain-with-validator.sh` runs those Mocha tests against `solana-test-validator`; `tests/sol-commons-workspace.ts` shows how the Merkle batch funds a `commons_rewards` epoch, while `tests/commons_conviction_voting/conviction.rs` now ensures Treasury transfers only happen via the CV PDA under the right thresholds. |
 
-### Example scenarios
+---
 
-1. **Community Hatch + ABC deployment** – The community runs `commons_hatch.initialize` with parameters, an allowlisted Merkle root, and a reserve mint. Contributors deposit during the open window; the finalizer uses `commons_abc.initialize_curve` to mint treasury and reserve vaults, then contributors can claim tokens post-hatch.
-2. **Continuous funding via conviction** – Commons token holders stake into proposals via `commons_conviction_voting.stake_tokens`. `update_conviction_for_proposal` keeps a decayed conviction value, and only when the calculated threshold is met does `check_and_execute` approve the request and pay out from the treasury via the CV PDA authority.
-3. **Praise → reward epoch** – The off-chain Praise service collects kudos, builds a Merkle batch, and `tests/sol-commons-workspace.ts` demonstrates how that batch becomes a `commons_rewards` epoch tied to a PDA vault with a deterministic mint. Claimers can later pull funds from the vault using the proof generated by the same off-chain service.
+## Example scenarios
 
-### Off-chain pipeline & PDA mapping
+1. **Community Hatch + ABC deployment**  
+   The community runs `commons_hatch.initialize` with parameters, an allowlisted Merkle root, and a reserve mint. Contributors deposit during the open window; the finalizer uses `commons_abc.initialize_curve` to mint treasury and reserve vaults, then contributors can claim tokens post-hatch.
+
+2. **Continuous funding via conviction**  
+   Commons token holders stake into proposals via `commons_conviction_voting.stake_tokens`. `update_conviction_for_proposal` keeps a decayed conviction value, and only when the calculated threshold is met does `check_and_execute` approve the request and pay out from the treasury via the CV PDA authority.
+
+3. **Praise → reward epoch**  
+   The off-chain Praise service collects kudos, builds a Merkle batch, and `tests/sol-commons-workspace.ts` demonstrates how that batch becomes a `commons_rewards` epoch tied to a PDA vault with a deterministic mint. Claimers can later pull funds from the vault using the proof generated by the same off-chain service.
+
+---
+
+## Off-chain pipeline & PDA mapping
 
 `offchain/pipeline/index.js` gathers the Praise, Tokenlog, and Simulator scaffolds into one deterministic payload. It can inject custom praise events, fetch GitHub issues and balance snapshots, and run simulated configuration sweeps so the JSON it emits mirrors the inputs that the on-chain programs expect:
 
@@ -40,18 +87,24 @@ TypeScript and Mocha integration shims (`sol-commons-workspace/tests/sol-commons
 
 For production tooling, `yarn pipeline:cli` runs `sol-commons-workspace/cli/emit-reward-batch.ts`, which calls the same pipeline, derives the reward/vault/claim PDAs, and prints the instruction-ready payload that TypeScript clients or CLIs can send to `commons_rewards.create_reward_epoch` and `claim_reward` when posting Merkle roots to a deployed epoch. Run `node offchain/pipeline/index.js` for quick debugging or `yarn pipeline:cli --output ./tmp/paylod.json` to capture a ready-to-send batch.
 
-### How to get started
+---
+
+## How to get started
 
 1. Install Anchor and run `yarn` in `sol-commons-workspace`; the workspace already includes `@coral-xyz/anchor`, `@solana/spl-token`, and the off-chain scaffolds plus the generated `commons_rewards` IDL under `offchain/commons_rewards.idl.json`.
 2. Start a local validator (`solana-test-validator`) before running Anchor tests so the new off-chain inputs can be validated, then run `yarn test:offchain` and `yarn test:offchain-validator` (the script rewrites `ANCHOR_PROVIDER_URL` and runs the Mocha suite under the validator) to exercise both the off-chain Merkle flow and the guarded conviction/treasury paths plus `cargo test -p commons_hatch`/`commons_abc`/`commons_conviction_voting`/`commons_rewards`.
 3. Use `Anchor.toml` + `cargo test` to deploy locally. Point `offchain/*/config.json` to the deployed programs and replay the on-chain flows via the integration tests once `solana-test-validator` is running.
 
-### Staying aligned
+---
+
+## Staying aligned
 
 - `sol-commons-v17`: hatch gating is in place, but consider adding more integration tests to prove contributions obey slot windows and finalization states.
 - `sol-commons-2bh`: the scaffolds & integration tests exist, so this issue now becomes implementing real services (e.g., praise aggregator, GitHub tokenlog bot, cadCAD simulator) that exercise the Anchor tests end-to-end.
 
-### Tests
+---
+
+## Tests
 
 ```bash
 yarn test:offchain
@@ -60,4 +113,3 @@ cargo test -p commons_abc
 cargo test -p commons_conviction_voting
 cargo test -p commons_rewards
 cd sol-commons-workspace && yarn test:offchain-validator
-```
