@@ -1,6 +1,6 @@
 ## Sol Commons on-chain toolkit
 
-Sol Commons ports the analytical Commons Stack toolkit ([commonsstack.org][1]) into Solana. At its heart are
+Sol Commons ports the analytical Commons Stack toolkit ([commonsstack.org](https://commonsstack.org)) into Solana. At its heart are
 
 1. **Augmented Bonding Curve (ABC)** – a smart-market maker whose pricing curve sends every contribution into a Reserve Pool for liquidity and a Funding Pool that is immediately spendable by the commons. Buyers mint tokens along the curve, contributors join hatches via allowlists, and every exit returns an exit tribute to the funding pool so the system is self-sustaining.
 2. **Conviction Voting** – a continuous governance flow where people lock Commons tokens behind proposals and conviction accumulates proportional to time held; the commons only spends treasury funds once accumulated conviction crosses an adaptive threshold, aligning incentives between contributors and fund recipients.
