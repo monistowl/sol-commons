@@ -1,4 +1,25 @@
 {
-  "mockIssues": ["issue-1", "issue-2"],
-  "mockBalances": [{"address": "F1", "tokens": 500}, {"address": "F2", "tokens": 300}]
+  "repo": "solana-labs/solana",
+  "maxIssues": 4,
+  "mockIssues": [
+    {
+      "id": 101,
+      "title": "Mock: Add better documentation for commons rewards",
+      "url": "https://github.com/sol-commons/mock/issues/101",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "author": "mock-bot"
+    },
+    {
+      "id": 102,
+      "title": "Mock: Evaluate conviction voting parameters",
+      "url": "https://github.com/sol-commons/mock/issues/102",
+      "createdAt": "2025-01-02T00:00:00Z",
+      "author": "mock-bot"
+    }
+  ],
+  "mockBalances": [
+    { "address": "4Nd1m3Ra2H5dPvrY7x8Fdc6nXbQfH9zBweGhUp8nC3F", "tokens": 500 },
+    { "address": "6nT6mzc6uLhc7dY3nWpmV2kqp5yQEs6ZKxtRXom3Wg2W", "tokens": 300 },
+    { "address": "8Zqk7c1WbVqz8gZ1XkzBz6ua2vwgVb4JkR9GsPQfB2yQ", "tokens": 200 }
+  ]
 }

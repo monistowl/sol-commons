@@ -1,4 +1,9 @@
 {
   "scenario": "default",
-  "iterations": 1000
+  "iterations": 1000,
+  "baseParams": {
+    "fundingRatio": 0.6,
+    "convictionDecay": 0.5,
+    "rewardMultiplier": 1.2
+  }
 }

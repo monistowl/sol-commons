@@ -1,4 +1,9 @@
 {
   "rpcEndpoint": "https://api.devnet.solana.com",
-  "defaultReward": 1000
+  "defaultReward": 1000,
+  "defaultClaims": [
+    { "address": "4Nd1m3Ra2H5dPvrY7x8Fdc6nXbQfH9zBweGhUp8nC3F", "amount": 500 },
+    { "address": "6nT6mzc6uLhc7dY3nWpmV2kqp5yQEs6ZKxtRXom3Wg2W", "amount": 300 },
+    { "address": "8Zqk7c1WbVqz8gZ1XkzBz6ua2vwgVb4JkR9GsPQfB2yQ", "amount": 200 }
+  ]
 }

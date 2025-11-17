@@ -13,7 +13,7 @@ Sol Commons ports the analytical Commons Stack toolkit ([commonsstack.org](https
 | `commons_hatch`, `commons_abc` | Anchor programs that open a Merkle-gated hatch, settle contributions in a vault, and initialize the ABC curve via CPI. The curve tracks a 3-account setup (curve_config PDA, reserve vault, treasury), handles friction splits, and supports refund/claim flows (see existing tests for minted, refunded, and claimed scenarios). |
 | `commons_conviction_voting` | Converts the classic CV pattern into Anchor: stakes flow through a global staking vault/PDA, every stake/unstake updates conviction with decay, a helper computes the required conviction threshold, and execution is blocked until the treasury-target ratio is satisfied. Tests cover math correctness and the lifecycle. |
 | `commons_rewards` | Merkle-based reward epochs driven by praise—each `RewardEpoch` keeps the vault + PDA bumps so claims can be signed deterministically. The reward CPI signs via derived authority seeds instead of reconstructing random bytes. |
-| Off-chain services | Praise, Tokenlog, Simulator scaffolds now export helpers/configs plus integration tests (Mocha + Anchor) so these services can eventually post Merkle roots, GitHub snapshot requests, and simulation parameters. |
+| Off-chain services | Praise, Tokenlog, and Simulator scaffolds now export live helpers/configs: Praise keeps a scoreboard that mixes events into Merkle batches, Tokenlog pulls GitHub issues before falling back to mocks, and the Simulator emits deterministic parameter snapshots; integration tests (Mocha + Anchor) wire those outputs into `commons_rewards`. |
 | Integration tests | `tests/offchain-integration.js` connects the Node.js scaffolds, while `tests/sol-commons-workspace.ts` shows how praise output becomes a `commons_rewards` epoch using Anchor/`@solana/spl-token`. |
 
 ### Example scenarios
@@ -24,9 +24,9 @@ Sol Commons ports the analytical Commons Stack toolkit ([commonsstack.org](https
 
 ### How to get started
 
-1. Install Anchor and run `yarn` in `sol-commons-workspace`; the workspace already includes `@coral-xyz/anchor`, `@solana/spl-token`, and the off-chain scaffolds.
-2. Run `yarn test:offchain` to verify the off-chain services are wired together, then `cargo test -p commons_hatch`/`commons_abc`/`commons_conviction_voting`/`commons_rewards` for the on-chain pieces.
-3. Use `Anchor.toml` + `cargo test` to deploy locally. Point `offchain/*/config.json` to the deployed programs and trigger the On-chain flows via the integration tests.
+1. Install Anchor and run `yarn` in `sol-commons-workspace`; the workspace already includes `@coral-xyz/anchor`, `@solana/spl-token`, and the off-chain scaffolds plus the generated `commons_rewards` IDL under `offchain/commons_rewards.idl.json`.
+2. Start a local validator (`solana-test-validator`) before running Anchor tests so the new off-chain inputs can be validated, then run `yarn test:offchain` to verify the praise/tokenlog/simulator pipeline and `cargo test -p commons_hatch`/`commons_abc`/`commons_conviction_voting`/`commons_rewards` for the programs.
+3. Use `Anchor.toml` + `cargo test` to deploy locally. Point `offchain/*/config.json` to the deployed programs and replay the on-chain flows via the integration tests once `solana-test-validator` is running.
 
 ### Staying aligned
 

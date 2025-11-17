@@ -24,7 +24,7 @@ describe("sol-commons-workspace", () => {
     const rewards = anchor.workspace.commonsRewards as Program<CommonsRewards>;
     const praiseService = startPraiseService();
     const batch = praiseService.generateRewardBatch();
-    const issues = fetchGithubIssues();
+    const issues = await fetchGithubIssues();
     const balances = sampleBalances();
     expect(issues).to.be.an("array").with.length.greaterThan(0);
     expect(balances).to.be.an("array");
@@ -72,4 +72,3 @@ describe("sol-commons-workspace", () => {
     }
   });
 });
-}
