@@ -1,6 +1,10 @@
 [workspace]
 members = [
-    "programs/*"
+    "programs/commons_rewards/programs/commons_rewards",
+    "programs/commons_conviction_voting/programs/commons_conviction_voting",
+    "programs/commons_abc/programs/commons_abc",
+    "programs/commons_hatch/programs/commons_hatch",
+    "programs/sol-commons-workspace",
 ]
 resolver = "2"
 

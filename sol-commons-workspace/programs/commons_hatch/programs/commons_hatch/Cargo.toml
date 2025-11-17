@@ -21,3 +21,10 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
 anchor-spl = { version = "0.31.1", features = ["idl-build"] }
 solana-merkle-tree = "3.1.1"
+commons_abc = { path = "../../../commons_abc/programs/commons_abc", features = ["cpi"] }
+
+[dev-dependencies]
+solana-program-test = "=2.3.1"
+solana-sdk = "=2.3.1"
+tokio = { version = "1.38.0", features = ["macros", "rt"] }
+spl-token = "5.0.0"
