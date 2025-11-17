@@ -37,6 +37,9 @@ pub mod commons_conviction_voting {
         cv_config.commons_treasury = ctx.accounts.commons_treasury.key();
         cv_config.commons_token_mint = ctx.accounts.commons_token_mint.key();
         cv_config.cv_config_bump = ctx.bumps.cv_config;
+        cv_config.staking_vault = ctx.accounts.staking_vault.key();
+        cv_config.staking_vault_bump = ctx.bumps.staking_vault;
+        cv_config.authority = ctx.accounts.authority.key();
         cv_config.total_staked = 0;
         Ok(())
     }
@@ -190,7 +193,6 @@ pub mod commons_conviction_voting {
     pub fn withdraw_stake(ctx: Context<WithdrawStake>) -> Result<()> {
         let stake_account = &mut ctx.accounts.stake_account;
         let proposal = &mut ctx.accounts.proposal;
-        let cv_config = &mut ctx.accounts.cv_config;
         let slot = ctx.accounts.clock.slot;
 
         require!(
@@ -237,10 +239,18 @@ pub struct Initialize {}
 #[derive(Accounts)]
 #[instruction(decay_rate: u64, max_ratio: u64, weight_exponent: u64, min_threshold: u64)]
 pub struct InitializeCvConfig<'info> {
-    #[account(init, payer = authority, space = 8 + 8 + 8 + 8 + 8 + 32 + 32 + 1, seeds = [b"cv_config"], bump)]
+    #[account(init, payer = authority, space = 178, seeds = [b"cv_config"], bump)]
     pub cv_config: Account<'info, CVConfig>,
     pub commons_treasury: Account<'info, TokenAccount>,
     pub commons_token_mint: Account<'info, Mint>,
+    #[account(init,
+        payer = authority,
+        token::mint = commons_token_mint,
+        token::authority = cv_config,
+        seeds = [b"staking_vault", cv_config.key().as_ref()],
+        bump
+    )]
+    pub staking_vault: Account<'info, TokenAccount>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -268,10 +278,16 @@ pub struct StakeTokens<'info> {
     pub cv_config: Account<'info, CVConfig>,
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
+    pub commons_token_mint: Account<'info, Mint>,
     #[account(mut)]
     pub user_commons_token_account: Account<'info, TokenAccount>,
-    #[account(mut)]
-    /// CHECK: This is the staking vault PDA
+    #[account(
+        mut,
+        seeds = [b"staking_vault", cv_config.key().as_ref()],
+        bump = cv_config.staking_vault_bump,
+        token::authority = cv_config,
+        token::mint = commons_token_mint
+    )]
     pub staking_vault: Account<'info, TokenAccount>, // Global staking vault
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -291,7 +307,14 @@ pub struct UnstakeTokens<'info> {
     #[account(mut)]
     pub user_commons_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
-    /// CHECK: This is the staking vault PDA
+    pub commons_token_mint: Account<'info, Mint>,
+    #[account(
+        mut,
+        seeds = [b"staking_vault", cv_config.key().as_ref()],
+        bump = cv_config.staking_vault_bump,
+        token::authority = cv_config,
+        token::mint = commons_token_mint
+    )]
     pub staking_vault: Account<'info, TokenAccount>, // Global staking vault
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -302,7 +325,7 @@ pub struct UnstakeTokens<'info> {
 
 #[derive(Accounts)]
 pub struct CheckAndExecute<'info> {
-    #[account(mut)]
+    #[account(mut, has_one = authority)]
     pub cv_config: Account<'info, CVConfig>,
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
@@ -310,6 +333,8 @@ pub struct CheckAndExecute<'info> {
     pub commons_treasury: Account<'info, TokenAccount>,
     #[account(mut)]
     pub recipient_token_account: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
 }
@@ -325,7 +350,15 @@ pub struct WithdrawStake<'info> {
     #[account(mut)]
     pub user_commons_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
+    pub commons_token_mint: Account<'info, Mint>,
     /// CHECK: This is the staking vault PDA
+    #[account(
+        mut,
+        seeds = [b"staking_vault", cv_config.key().as_ref()],
+        bump = cv_config.staking_vault_bump,
+        token::authority = cv_config,
+        token::mint = commons_token_mint
+    )]
     pub staking_vault: Account<'info, TokenAccount>, // Global staking vault
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -343,6 +376,9 @@ pub struct CVConfig {
     pub commons_treasury: Pubkey,
     pub commons_token_mint: Pubkey,
     pub cv_config_bump: u8,
+    pub staking_vault: Pubkey,
+    pub staking_vault_bump: u8,
+    pub authority: Pubkey,
     pub total_staked: u64,
 }
 
@@ -490,6 +526,9 @@ mod tests {
             commons_treasury: Pubkey::default(),
             commons_token_mint: Pubkey::default(),
             cv_config_bump: 0,
+            staking_vault: Pubkey::default(),
+            staking_vault_bump: 0,
+            authority: Pubkey::default(),
             total_staked: 0,
         }
     }

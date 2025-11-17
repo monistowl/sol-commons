@@ -5,5 +5,12 @@
     "fundingRatio": 0.6,
     "convictionDecay": 0.5,
     "rewardMultiplier": 1.2
-  }
+  },
+  "curveScenarios": [
+    { "name": "baseline", "kappa": 2, "exponent": 1, "friction": 50000, "deposit": 1000000 },
+    { "name": "deep_reserve", "kappa": 3, "exponent": 2, "friction": 70000, "deposit": 2000000 },
+    { "name": "fast_ramp", "kappa": 4, "exponent": 3, "friction": 30000, "deposit": 3000000 },
+    { "name": "high_slippage", "kappa": 5, "exponent": 4, "friction": 90000, "deposit": 4000000 },
+    { "name": "zero_deposit", "kappa": 2, "exponent": 1, "friction": 1000, "deposit": 1 }
+  ]
 }

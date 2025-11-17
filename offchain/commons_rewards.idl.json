@@ -47,6 +47,7 @@
         { "name": "rewardVault", "isMut": true, "isSigner": false },
         { "name": "rewardVaultAuthority", "isMut": false, "isSigner": false },
         { "name": "userRewardTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "claimStatus", "isMut": true, "isSigner": false },
         { "name": "authority", "isMut": true, "isSigner": true },
         { "name": "tokenProgram", "isMut": false, "isSigner": false },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
@@ -84,11 +85,28 @@
       }
     }
   ],
+  "types": [
+    {
+      "name": "claimStatus",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "claimed", "type": "bool" }
+        ]
+      }
+    }
+  ],
   "errors": [
     {
       "code": 6000,
       "name": "InvalidMerkleProof",
       "msg": "Invalid Merkle proof."
+    }
+    ,
+    {
+      "code": 6001,
+      "name": "AlreadyClaimed",
+      "msg": "Reward already claimed for this epoch."
     }
   ]
 }

@@ -45,6 +45,10 @@ pub mod commons_rewards {
             verify_merkle_proof(proof, reward_epoch.merkle_root, leaf),
             RewardError::InvalidMerkleProof
         );
+        require!(
+            !ctx.accounts.claim_status.claimed,
+            RewardError::AlreadyClaimed
+        );
 
         // Transfer promised amount from Reward Pool PDA to user’s wallet
         let cpi_accounts = Transfer {
@@ -63,6 +67,8 @@ pub mod commons_rewards {
         let signer = &[&authority_seeds[..]];
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
         token::transfer(cpi_ctx, amount)?;
+
+        ctx.accounts.claim_status.claimed = true;
 
         Ok(())
     }
@@ -113,10 +119,19 @@ pub struct ClaimReward<'info> {
     pub reward_vault_authority: UncheckedAccount<'info>,
     #[account(mut)]
     pub user_reward_token_account: Account<'info, TokenAccount>,
+    #[account(
+        init_if_needed,
+        payer = authority,
+        space = 8 + 1,
+        seeds = [b"reward_claim", epoch_id.to_le_bytes().as_ref(), authority.key().as_ref()],
+        bump
+    )]
+    pub claim_status: Account<'info, ClaimStatus>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
 }
 
 #[account]
@@ -129,6 +144,11 @@ pub struct RewardEpoch {
     pub reward_vault_bump: u8,
     pub reward_vault_authority: Pubkey,
     pub reward_vault_authority_bump: u8,
+}
+
+#[account]
+pub struct ClaimStatus {
+    pub claimed: bool,
 }
 
 // Helper function to create a leaf from the claimer's public key and amount
@@ -157,4 +177,6 @@ fn verify_merkle_proof(proof: Vec<[u8; 32]>, root: [u8; 32], leaf: [u8; 32]) -> 
 pub enum RewardError {
     #[msg("Invalid Merkle proof.")]
     InvalidMerkleProof,
+    #[msg("Reward already claimed for this epoch.")]
+    AlreadyClaimed,
 }
