@@ -164,11 +164,14 @@ class PraiseService extends EventEmitter {
   }
 }
 
-function startPraiseService() {
+function startPraiseService(options = {}) {
   const service = new PraiseService();
-  service.on('praise', (payload) => {
-    console.log('praise received', payload);
-  });
+  const shouldLog = !options.silent && process.env.SOL_COMMONS_PRAISE_SILENT !== '1';
+  if (shouldLog) {
+    service.on('praise', (payload) => {
+      console.log('praise received', payload);
+    });
+  }
   return service;
 }
 

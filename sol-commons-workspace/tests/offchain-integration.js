@@ -1,36 +1,51 @@
 const anchor = require('@coral-xyz/anchor');
 const { TOKEN_PROGRAM_ID } = require('@solana/spl-token');
 const { expect } = require('chai');
-const { startPraiseService } = require('../../offchain/praise-service/index');
-const { fetchGithubIssues, sampleBalances } = require('../../offchain/tokenlog-service/index');
-const { runSimulation } = require('../../offchain/simulator-pipeline/index');
+const { loadOffchainPayload } = require('./helpers/offchainPayload');
 const rewardIdl = require('../../offchain/commons_rewards.idl.json');
 
-describe('offchain scaffolding integration', () => {
-  it('generates reward batch and ties helpers together', async () => {
-    const praiseService = startPraiseService();
-    praiseService.collect('test-event');
-    const batch = praiseService.generateRewardBatch();
+const validatorSecret = process.env.OFFCHAIN_VALIDATOR_SECRET;
+function buildValidatorWallet() {
+  if (!validatorSecret) {
+    return anchor.web3.Keypair.generate();
+  }
+  const secretKey = new Uint8Array(JSON.parse(validatorSecret));
+  return anchor.web3.Keypair.fromSecretKey(secretKey);
+}
+
+describe('offchain scaffolding integration', function () {
+  this.timeout(10000);
+
+  it('generates reward batch and ties helpers together', async function () {
+    const payload = await loadOffchainPayload({
+      praiseEvents: [{ event: 'test-event', amount: 42 }],
+    });
+    const { batch, issues, balances, simulation } = payload;
     expect(batch).to.include.all.keys(['merkleRoot', 'totalTokens', 'snapshotDate']);
     expect(batch.claims).to.be.an('array').with.length.greaterThan(0);
 
-    const issues = await fetchGithubIssues();
-    const balances = sampleBalances();
     expect(issues).to.be.an('array').with.length.greaterThan(0);
     expect(balances).to.be.an('array');
 
-    const sim = runSimulation();
-    expect(sim.params).to.include.keys(['fundingRatio', 'convictionDecay']);
-    expect(sim.metrics).to.include.keys(['confidence', 'projectedPayout']);
+    expect(simulation.params).to.include.keys(['fundingRatio', 'convictionDecay']);
+    expect(simulation.metrics).to.include.keys(['confidence', 'projectedPayout']);
   });
 
-  it('produces reward instructions from Praise outputs', async () => {
-    const praiseService = startPraiseService();
-    const batch = praiseService.generateRewardBatch();
+  it('produces reward instructions from Praise outputs', async function () {
+    const walletKeypair = buildValidatorWallet();
+    const payload = await loadOffchainPayload({
+      praiseEvents: [
+        {
+          address: walletKeypair.publicKey.toBase58(),
+          amount: 1234,
+          event: 'claimer-event',
+        },
+      ],
+    });
+    const batch = payload.batch;
     const epochId = 1;
     const rootBuffer = Buffer.from(batch.merkleRoot, 'hex');
 
-    const walletKeypair = anchor.web3.Keypair.generate();
     const provider = new anchor.AnchorProvider(
       new anchor.web3.Connection('http://127.0.0.1:8899', 'confirmed'),
       new anchor.Wallet(walletKeypair),
@@ -73,22 +88,28 @@ describe('offchain scaffolding integration', () => {
     expect(createIx.programId.equals(programId)).to.be.true;
     expect(createIx.keys.map((k) => k.pubkey.toBase58())).to.include(rewardEpochPda.toBase58());
 
-    const firstClaim = batch.claims[0];
-    const proof = praiseService.proofFor(firstClaim.address);
+    const claimProof = payload.proofs[walletKeypair.publicKey.toBase58()];
+    expect(claimProof).to.be.ok;
     const userRewardTokenAccount = anchor.web3.Keypair.generate().publicKey;
+    const [claimStatus] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('reward_claim'), epochBuffer, walletKeypair.publicKey.toBuffer()],
+      programId
+    );
     const claimIx = await rewards.instruction.claimReward(
       new anchor.BN(epochId),
-      new anchor.BN(firstClaim.amount),
-      proof.proof.map((node) => Array.from(node)),
+      new anchor.BN(claimProof.amount),
+      claimProof.proof.map((node) => Array.from(node)),
       {
         accounts: {
           rewardEpoch: rewardEpochPda,
           rewardVault,
           rewardVaultAuthority,
           userRewardTokenAccount,
+          claimStatus,
           authority: provider.wallet.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         },
       }
     );

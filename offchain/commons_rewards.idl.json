@@ -18,6 +18,13 @@
           { "name": "rewardVaultAuthorityBump", "type": "u8" }
         ]
       }
+    },
+    {
+      "name": "claimStatus",
+      "type": {
+        "kind": "struct",
+        "fields": [{ "name": "claimed", "type": "bool" }]
+      }
     }
   ],
   "instructions": [
@@ -50,7 +57,8 @@
         { "name": "claimStatus", "isMut": true, "isSigner": false },
         { "name": "authority", "isMut": true, "isSigner": true },
         { "name": "tokenProgram", "isMut": false, "isSigner": false },
-        { "name": "systemProgram", "isMut": false, "isSigner": false }
+        { "name": "systemProgram", "isMut": false, "isSigner": false },
+        { "name": "rent", "isMut": false, "isSigner": false }
       ],
       "args": [
         { "name": "epochId", "type": "u64" },
@@ -83,11 +91,10 @@
           { "name": "rewardVaultAuthorityBump", "type": "u8" }
         ]
       }
-    }
-  ],
-  "types": [
+    },
     {
       "name": "claimStatus",
+      "discriminator": [66, 56, 39, 92, 199, 70, 41, 32],
       "type": {
         "kind": "struct",
         "fields": [
@@ -97,16 +104,7 @@
     }
   ],
   "errors": [
-    {
-      "code": 6000,
-      "name": "InvalidMerkleProof",
-      "msg": "Invalid Merkle proof."
-    }
-    ,
-    {
-      "code": 6001,
-      "name": "AlreadyClaimed",
-      "msg": "Reward already claimed for this epoch."
-    }
+    { "code": 6000, "name": "InvalidMerkleProof", "msg": "Invalid Merkle proof." },
+    { "code": 6001, "name": "AlreadyClaimed", "msg": "Reward already claimed for this epoch." }
   ]
 }
