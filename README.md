@@ -2,9 +2,9 @@
 
 Sol Commons ports the analytical Commons Stack toolkit ([commonsstack.org][1]) into Solana. At its heart are
 
-1. **Augmented Bonding Curve (ABC)** – a smart-market maker whose pricing curve sends every contribution into a Reserve Pool for liquidity and a Funding Pool that is immediately spendable by the commons. Buyers mint tokens along the curve, contributors join hatches via allowlists, and every exit returns an exit tribute to the funding pool so the system is self-sustaining.citeturn0search0
-2. **Conviction Voting** – a continuous governance flow where people lock Commons tokens behind proposals and conviction accumulates proportional to time held; the commons only spends treasury funds once accumulated conviction crosses an adaptive threshold, aligning incentives between contributors and fund recipients.citeturn0search2turn0search4
-3. **Commons Assembly/Connected services** – off-chain tools (Praise/Tokenlog/Simulator) surface community recognition, GitHub issue prioritization, and parameter kits that feed into the on-chain ABC + Conviction Voting loop to fund real-world public goods via the commons treasury.citeturn0search2
+1. **Augmented Bonding Curve (ABC)** – a smart-market maker whose pricing curve sends every contribution into a Reserve Pool for liquidity and a Funding Pool that is immediately spendable by the commons. Buyers mint tokens along the curve, contributors join hatches via allowlists, and every exit returns an exit tribute to the funding pool so the system is self-sustaining.
+2. **Conviction Voting** – a continuous governance flow where people lock Commons tokens behind proposals and conviction accumulates proportional to time held; the commons only spends treasury funds once accumulated conviction crosses an adaptive threshold, aligning incentives between contributors and fund recipients.
+3. **Commons Assembly/Connected services** – off-chain tools (Praise/Tokenlog/Simulator) surface community recognition, GitHub issue prioritization, and parameter kits that feed into the on-chain ABC + Conviction Voting loop to fund real-world public goods via the commons treasury.
 
 ### What this repo provides
 
