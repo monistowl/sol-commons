@@ -113,3 +113,14 @@ cargo test -p commons_abc
 cargo test -p commons_conviction_voting
 cargo test -p commons_rewards
 cd sol-commons-workspace && yarn test:offchain-validator
+```
+
+## Full-lifecycle validation
+
+`sol-commons-workspace/tests/full-lifecycle.ts` now strings the hatch → ABC → conviction voting → rewards flow together with the off-chain payload generator, so it is the fastest way to validate the entire pipeline in one shot. To run that scenario:
+
+1. Start `solana-test-validator --reset --quiet` (Anchor expects the default RPC at `http://127.0.0.1:8899`).
+2. Export `ANCHOR_PROVIDER_URL=http://127.0.0.1:8899` (and `ANCHOR_WALLET` if you point Anchor at a specific keypair) so `AnchorProvider.env()` can connect.
+3. Run `yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/full-lifecycle.ts`. You can also set `OFFCHAIN_PIPELINE_PAYLOAD` to reuse a previously written payload instead of rebuilding the Praise/Simulator assets every time.
+
+Because it asserts each PDA derivation and CPI call in sequence, this test is useful for smoke-checking the entire implementation before running the per-program Rust suites.
