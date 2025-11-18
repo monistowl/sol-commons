@@ -24,7 +24,31 @@ validator_cleanup() {
 }
 trap validator_cleanup EXIT
 
-solana-test-validator --reset --quiet >"$LOG_FILE" 2>&1 &
+REQUIRED_SO_FILES=(
+  "sol-commons-workspace/target/deploy/commons_abc.so"
+  "sol-commons-workspace/target/deploy/commons_conviction_voting.so"
+  "sol-commons-workspace/target/deploy/commons_hatch.so"
+  "sol-commons-workspace/target/deploy/commons_rewards.so"
+  "sol-commons-workspace/target/deploy/sol_commons_workspace.so"
+)
+for so in "${REQUIRED_SO_FILES[@]}"; do
+  if [[ ! -f "$REPO_ROOT/$so" ]]; then
+    echo "Required build artifact missing: $so" >&2
+    echo "Run 'cd $REPO_ROOT/sol-commons-workspace && anchor build' to generate it." >&2
+    exit 1
+  fi
+done
+
+FAUCET_PORT=9901
+BPF_ARGS=(
+  "--bpf-program" "2xnNJU6bK1R6WvnBUmUKxftMyVuvXXhn3Vs5hDHM3KQv" "sol-commons-workspace/target/deploy/commons_abc.so"
+  "--bpf-program" "sn9bNZ3gZxyiy5zE5FGGSJGQEXeedgoSGEMRQNUiSME" "sol-commons-workspace/target/deploy/commons_conviction_voting.so"
+  "--bpf-program" "CPjQgH9wbaJsW57qB1aaHasgv6MZAgQLwF1D77WZm2Uv" "sol-commons-workspace/target/deploy/commons_hatch.so"
+  "--bpf-program" "GccA6L8BUnkZVeUAdSAeoiFFCVynf6GZbBTPZfCj7tpY" "sol-commons-workspace/target/deploy/commons_rewards.so"
+  "--bpf-program" "GUis4rZk6zLTMSMRiy68tN8sbwRMz27VpPfBDx34BHzo" "sol-commons-workspace/target/deploy/sol_commons_workspace.so"
+)
+
+solana-test-validator --reset --quiet --faucet-port "$FAUCET_PORT" "${BPF_ARGS[@]}" >"$LOG_FILE" 2>&1 &
 STV_PID=$!
 
 sleep 2
